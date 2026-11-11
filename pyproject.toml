@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "duplicacy-fuse-gnome"
+version = "0.1.0"
+description = "GNOME desktop companion for the standalone duplicacy-fuse command line tool"
+requires-python = ">=3.11"
+
+[project.scripts]
+duplicacy-fuse-gnome = "duplicacy_fuse_gnome.app:main"
+
+[tool.setuptools]
+packages = ["duplicacy_fuse_gnome"]
+
+[tool.setuptools.data-files]
+"share/applications" = ["data/com.duplicacy.Fuse.desktop"]
+
+[tool.unittest]
+start-directory = "tests"

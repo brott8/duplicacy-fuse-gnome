@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Duplicacy FUSE
+Comment=Browse Duplicacy snapshots as read-only mounts
+Exec=duplicacy-fuse-gnome
+Icon=folder-remote
+Terminal=false
+Type=Application
+Categories=Utility;FileTools;
+StartupNotify=true
