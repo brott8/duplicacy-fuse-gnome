@@ -1,6 +1,6 @@
 # Duplicacy FUSE for GNOME
 
-This is a separate GNOME desktop companion for the standalone `duplicacy-fuse` CLI. It keeps GTK/libadwaita dependencies and desktop packaging out of the FUSE project. The companion requires a CLI build that provides `gui-storages`, `gui-snapshots`, `gui-revisions`, and the `mount --gui-control-fd` helper interface.
+This is a separate GNOME desktop companion for the standalone `duplicacy-fuse` CLI. It keeps GTK/libadwaita dependencies and desktop packaging out of the FUSE project. The companion requires a CLI build that provides `gui-storages`, `gui-snapshots`, `gui-revisions`, `gui-browse`, repeatable `mount --revision` and `mount --path` options, `mount --compare`, and the `mount --gui-control-fd` helper interface.
 
 ## Requirements
 
@@ -25,7 +25,9 @@ Install `data/com.duplicacy.Fuse.desktop` under `~/.local/share/applications/` t
 
 ## Security and lifecycle
 
-Profiles live in `$XDG_CONFIG_HOME/duplicacy-fuse-gnome/profiles.json` with owner-only permissions. Profiles contain no passwords. Encrypted storage passwords are requested for every mount and sent over a private inherited Unix socket to the CLI helper, never in command-line arguments, environment variables, logs, notifications, or profile data. Duplicacy encryption password environment variables are removed from helper environments; separate SMB credentials remain available to the storage backend.
+Profiles live in `$XDG_CONFIG_HOME/duplicacy-fuse-gnome/profiles.json` with owner-only permissions. Profiles contain no passwords. Encrypted storage passwords are requested for every mount and sent over a private inherited Unix socket to the CLI helper, never in command-line arguments, environment variables, logs, notifications, or profile data. During snapshot-tree browsing only, the password may be reused in memory while that picker remains open; closing it clears the temporary value. Duplicacy encryption password environment variables are removed from helper environments; separate SMB credentials remain available to the storage backend.
+
+Comparison profiles can select multiple revisions and paths, with a separate reference revision used to browse the archived directory tree. The newest listed revision is the default browse source. Selected paths are matched by their exact repository-relative names in each comparison revision; renames are not inferred. Paths missing from an individual revision are omitted, and a revision folder is omitted when none of the selected paths exist there. The mount fails if no selected path matches any comparison revision. Comparison folders are named with the revision number and UTC snapshot timestamp; selected paths retain their repository-relative hierarchy. Selecting many revisions increases metadata loading time and memory use, while file contents are still fetched on demand.
 
 Closing the window hides it while active mounts remain supervised in the user session. Selecting Quit asks the helper to unmount all active mounts. There is no login auto-mount. Runtime mountpoints are created below `$XDG_RUNTIME_DIR/duplicacy-fuse/`; custom mountpoints must be empty private directories owned by the user.
 

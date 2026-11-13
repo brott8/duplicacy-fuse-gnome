@@ -5,8 +5,8 @@ import os
 import stat
 import tempfile
 import uuid
-from dataclasses import asdict, dataclass
-from pathlib import Path
+from dataclasses import asdict, dataclass, field
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -23,10 +23,17 @@ class Profile:
     cache_dir: str = ""
     fuse_binary: str = "duplicacy-fuse"
     id: str = ""
+    reference_revision: int = 0
+    comparison_revisions: list[int] = field(default_factory=list)
+    selected_paths: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.id:
             self.id = str(uuid.uuid4())
+
+
+def profile_mode(profile: Profile) -> str:
+    return "compare" if profile.comparison_revisions else "single"
 
 
 def config_directory() -> Path:
@@ -70,6 +77,26 @@ def validate_profile(profile: Profile) -> None:
         raise ValueError("a configured storage must be selected")
     if not isinstance(profile.revision, int) or profile.revision < 0:
         raise ValueError("revision must not be negative")
+    if not isinstance(profile.reference_revision, int) or isinstance(profile.reference_revision, bool) or profile.reference_revision < 0:
+        raise ValueError("reference revision must not be negative")
+    if not isinstance(profile.comparison_revisions, list) or any(
+        not isinstance(revision, int) or isinstance(revision, bool) or revision < 1
+        for revision in profile.comparison_revisions
+    ):
+        raise ValueError("comparison revisions must be positive integers")
+    if len(set(profile.comparison_revisions)) != len(profile.comparison_revisions):
+        raise ValueError("comparison revisions must not contain duplicates")
+    if not isinstance(profile.selected_paths, list) or any(
+        not isinstance(path, str) or not path or PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts
+        for path in profile.selected_paths
+    ):
+        raise ValueError("selected paths must remain inside the repository")
+    if len(set(profile.selected_paths)) != len(profile.selected_paths):
+        raise ValueError("selected paths must not contain duplicates")
+    if profile.comparison_revisions and profile.reference_revision < 1:
+        raise ValueError("comparison mounts require a positive reference revision")
+    if profile.comparison_revisions and not profile.selected_paths:
+        raise ValueError("comparison mounts require at least one selected path")
     if not isinstance(profile.cache_bytes, int) or profile.cache_bytes < 0:
         raise ValueError("cache size must not be negative")
     if os.path.isabs(profile.selected_path):

@@ -7,7 +7,8 @@ import socket
 import stat
 import subprocess
 import threading
-from pathlib import Path
+from collections.abc import Mapping
+from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from .profiles import Profile
@@ -184,6 +185,11 @@ def start_mount(
     on_event: EventCallback,
     on_exit: ExitCallback,
 ) -> tuple[HelperProcess, Path, bool]:
+    if profile.comparison_revisions and (profile.reference_revision < 1 or not profile.selected_paths):
+        raise ValueError("comparison mounts require a reference revision and at least one selected path")
+    snapshot_id = profile.snapshot_id.strip()
+    if not snapshot_id:
+        raise ValueError("an explicit snapshot ID is required before mounting")
     created = not bool(profile.mountpoint)
     mountpoint = runtime_mountpoint(profile.id) if created else validate_custom_mountpoint(profile.mountpoint)
     binary = resolve_fuse_binary(profile.fuse_binary)
@@ -194,15 +200,18 @@ def start_mount(
         "--storage",
         profile.storage,
         "--snapshot",
-        profile.snapshot_id,
-        "--revision",
-        str(profile.revision),
-        "--mountpoint",
-        str(mountpoint),
-        "--cache-size",
-        str(profile.cache_bytes),
+        snapshot_id,
     ]
-    if profile.selected_path:
+    if profile.comparison_revisions:
+        arguments.append("--compare")
+        for revision in profile.comparison_revisions:
+            arguments.extend(("--revision", str(revision)))
+        for selected_path in profile.selected_paths:
+            arguments.extend(("--path", selected_path))
+    else:
+        arguments.extend(("--revision", str(profile.revision)))
+    arguments.extend(("--mountpoint", str(mountpoint), "--cache-size", str(profile.cache_bytes)))
+    if not profile.comparison_revisions and profile.selected_path:
         arguments.extend(("--path", profile.selected_path))
     if profile.cache_dir:
         arguments.extend(("--cache-dir", profile.cache_dir))
@@ -216,6 +225,52 @@ def start_mount(
                 pass
         raise
     return process, mountpoint, created
+
+
+def validate_directory_entries(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        raise RuntimeError("The FUSE helper returned an invalid directory listing.")
+    for entry in value:
+        if not isinstance(entry, Mapping):
+            raise RuntimeError("The FUSE helper returned an invalid directory entry.")
+        if (
+            not isinstance(entry.get("name"), str)
+            or not entry["name"]
+            or not isinstance(entry.get("path"), str)
+            or not entry["path"]
+            or PurePosixPath(entry["path"]).is_absolute()
+            or ".." in PurePosixPath(entry["path"]).parts
+            or not isinstance(entry.get("type"), str)
+            or entry["type"] not in {"directory", "file", "symlink"}
+            or not isinstance(entry.get("size"), int)
+            or isinstance(entry["size"], bool)
+            or entry["size"] < 0
+        ):
+            raise RuntimeError("The FUSE helper returned an invalid directory entry.")
+    return [dict(entry) for entry in value]
+
+
+def browse_snapshot(
+    profile: Profile,
+    revision: int,
+    path: str,
+    on_event: EventCallback,
+    on_exit: ExitCallback,
+) -> HelperProcess:
+    arguments = [
+        "gui-browse",
+        "--repo",
+        profile.repository,
+        "--storage",
+        profile.storage,
+        "--snapshot",
+        profile.snapshot_id,
+        "--revision",
+        str(revision),
+        "--path",
+        path,
+    ]
+    return _spawn(profile.fuse_binary, arguments, on_event, on_exit)
 
 
 def list_revisions(

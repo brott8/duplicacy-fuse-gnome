@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from duplicacy_fuse_gnome.profiles import Profile, load_profiles, save_profiles, validate_profile
+from duplicacy_fuse_gnome.profiles import Profile, load_profiles, profile_mode, save_profiles, validate_profile
 
 
 class ProfileTests(unittest.TestCase):
@@ -29,6 +29,62 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertNotIn("password", path.read_text().casefold())
         self.assertEqual(profile.cache_bytes, 0)
+
+    def test_old_profile_loads_with_legacy_defaults_and_round_trips(self):
+        path = self.root / "config" / "profiles.json"
+        path.parent.mkdir(mode=0o700)
+        path.write_text(
+            json.dumps(
+                [{
+                    "name": "Old",
+                    "repository": str(self.repo),
+                    "storage": "nas",
+                    "snapshot_id": "snap",
+                    "revision": 8,
+                    "selected_path": "folder/file.txt",
+                }]
+            )
+        )
+
+        loaded = load_profiles(path)
+        self.assertEqual(loaded[0].revision, 8)
+        self.assertEqual(loaded[0].selected_path, "folder/file.txt")
+        self.assertEqual(loaded[0].reference_revision, 0)
+        self.assertEqual(loaded[0].comparison_revisions, [])
+        self.assertEqual(loaded[0].selected_paths, [])
+        self.assertEqual(profile_mode(loaded[0]), "single")
+        save_profiles(loaded, path)
+        self.assertEqual(load_profiles(path), loaded)
+
+    def test_comparison_fields_round_trip_without_normalizing_selected_paths(self):
+        path = self.root / "config" / "profiles.json"
+        profile = Profile(
+            name="Compare",
+            repository=str(self.repo),
+            storage="nas",
+            reference_revision=3,
+            comparison_revisions=[4, 7],
+            selected_paths=["./folder/a.txt", "odd name/"],
+        )
+        save_profiles([profile], path)
+        self.assertEqual(load_profiles(path), [profile])
+        self.assertEqual(load_profiles(path)[0].selected_paths, ["./folder/a.txt", "odd name/"])
+        self.assertEqual(profile_mode(profile), "compare")
+
+    def test_comparison_profiles_require_a_reference_and_unique_selections(self):
+        profile = Profile(
+            name="Compare",
+            repository=str(self.repo),
+            storage="nas",
+            comparison_revisions=[4],
+            selected_paths=["folder/a.txt"],
+        )
+        with self.assertRaisesRegex(ValueError, "reference revision"):
+            validate_profile(profile)
+        profile.reference_revision = 3
+        profile.comparison_revisions = [4, 4]
+        with self.assertRaisesRegex(ValueError, "duplicates"):
+            validate_profile(profile)
 
     def test_rejects_password_fields_in_existing_profile_file(self):
         path = self.root / "config" / "profiles.json"
