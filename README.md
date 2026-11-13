@@ -1,6 +1,8 @@
 # Duplicacy FUSE for GNOME
 
-This is a separate GNOME desktop companion for the standalone `duplicacy-fuse` CLI. It keeps GTK/libadwaita dependencies and desktop packaging out of the FUSE project. The companion requires a CLI build that provides `gui-storages`, `gui-snapshots`, `gui-revisions`, `gui-browse`, repeatable `mount --revision` and `mount --path` options, `mount --compare`, and the `mount --gui-control-fd` helper interface.
+This is a separate GNOME desktop companion for the standalone [`duplicacy-fuse` CLI](https://github.com/brott8/duplicacy-fuse). It keeps GTK/libadwaita dependencies and desktop packaging out of the FUSE project. The companion requires a CLI build that provides `gui-storages`, `gui-snapshots`, `gui-revisions`, `gui-browse`, repeatable `mount --revision` and `mount --path` options, `mount --compare`, and the `mount --gui-control-fd` helper interface.
+
+This project was built with AI assistance. I understand and have reviewed the code.
 
 ## Requirements
 
